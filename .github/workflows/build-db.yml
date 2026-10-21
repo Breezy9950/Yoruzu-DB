@@ -1,0 +1,43 @@
+name: Build Yoruzu DB
+
+on:
+  schedule:
+    - cron: '0 0 * * 0' # Runs every Sunday at midnight
+  workflow_dispatch: # Allows you to run it manually anytime
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v3
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v3
+        with:
+          node-version: '18'
+
+      - name: Download databases
+        run: |
+          echo "Downloading Manami..."
+          curl -L -s -o manami.json https://github.com/manami-project/anime-offline-database/releases/latest/download/anime-offline-database-minified.json
+          echo "Downloading AniBridge..."
+          curl -L -s -o anibridge.json https://github.com/anibridge/anibridge-mappings/releases/download/v3/mappings.min.json
+
+      - name: Run merge script
+        run: node scripts/merge.js
+
+      - name: Get current date
+        id: date
+        run: echo "date=$(date +'%Y-%m-%d')" >> $GITHUB_OUTPUT
+
+      - name: Create Release
+        uses: softprops/action-gh-release@v1
+        with:
+          tag_name: db-${{ steps.date.outputs.date }}
+          name: Yoruzu DB Update ${{ steps.date.outputs.date }}
+          files: master-db.json
+          draft: false
+          prerelease: false
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
