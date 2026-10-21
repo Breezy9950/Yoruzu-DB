@@ -1,0 +1,10 @@
+{
+  "name": "yoruzu-db",
+  "version": "1.0.0",
+  "description": "Anime mapping database for Nuvio plugins",
+  "main": "scripts/merge.js",
+  "type": "commonjs",
+  "scripts": {
+    "build": "node scripts/merge.js"
+  }
+}
