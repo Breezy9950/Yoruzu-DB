@@ -2,8 +2,8 @@ name: Build Yoruzu DB
 
 on:
   schedule:
-    - cron: '0 0 * * 0'
-  workflow_dispatch:
+    - cron: '0 0 * * 0' # Runs every Sunday at midnight
+  workflow_dispatch: # Allows you to run it manually anytime
 
 permissions:
   contents: write
@@ -23,6 +23,7 @@ jobs:
       - name: Download previous database
         run: |
           echo "Downloading old DB for diffing..."
+          # The || true prevents the action from failing if it's the very first run
           curl -sL -o old-master-db.json https://github.com/Breezy9950/Yoruzu-DB/releases/latest/download/master-db.json || true
 
       - name: Download upstream databases
@@ -47,6 +48,7 @@ jobs:
           files: |
             master-db.json
             updates.json
+            seed.json
           draft: false
           prerelease: false
         env:
