@@ -132,15 +132,19 @@ async function buildMasterDb() {
   console.log("\nBuild stats:");
   console.log(`  anime entries: ${animeCount}`);
   console.log(`  mapping keys: ${mappingCount}`);
+  console.log(`  dropped AniBridge targets: ${droppedAnilist}`);
+  console.log(`  skipped malformed ranges: ${skippedMalformed}`);
+  console.log(`  skipped length-mismatch ranges: ${skippedLengthMismatch}`);
 
   if (animeCount < 15000) throw new Error(`VALIDATION FAILED: anime count too low (${animeCount})`);
   if (mappingCount < 40000) throw new Error(`VALIDATION FAILED: mapping count too low (${mappingCount})`);
 
+  // --- WRITE FLAT MASTER DB ---
   fs.writeFileSync('master-db.json', JSON.stringify(finalDb));
-  console.log(`\nMaster DB built successfully! Size: ${(fs.statSync('master-db.json').size / 1024 / 1024).toFixed(2)} MB`);
+  console.log(`\nmaster-db.json built successfully! Size: ${(fs.statSync('master-db.json').size / 1024 / 1024).toFixed(2)} MB`);
 
   // --- FRANCHISE BUNDLING & DIFFING LOGIC ---
-  console.log("\nGenerating franchise updates...");
+  console.log("\nGenerating franchise bundles...");
   
   const newFranchises = buildFranchises(finalDb);
   let oldFranchises = {};
@@ -157,7 +161,12 @@ async function buildMasterDb() {
     console.log("No old-master-db.json found. All franchises will be marked as new.");
   }
 
-  const updates = {}; // Keys will be franchise IDs (e.g., "tmdb:95479")
+  // --- WRITE FULL SEED DB (For initial Netlify Blob seeding) ---
+  fs.writeFileSync('seed.json', JSON.stringify(newFranchises));
+  console.log(`seed.json built successfully! Size: ${(fs.statSync('seed.json').size / 1024 / 1024).toFixed(2)} MB`);
+
+  // --- WRITE INCREMENTAL UPDATES DB ---
+  const updates = {}; 
   let newCount = 0;
   let changedCount = 0;
 
@@ -173,8 +182,7 @@ async function buildMasterDb() {
   }
 
   fs.writeFileSync('updates.json', JSON.stringify(updates));
-  
-  console.log(`\nupdates.json generated! Size: ${(fs.statSync('updates.json').size / 1024).toFixed(2)} KB`);
+  console.log(`updates.json built successfully! Size: ${(fs.statSync('updates.json').size / 1024).toFixed(2)} KB`);
   console.log(`  New Franchises: ${newCount}, Changed Franchises: ${changedCount}`);
 }
 
