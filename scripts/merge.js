@@ -1,5 +1,33 @@
 const fs = require('fs');
 
+// Helper to bundle the flat DB into franchise-based objects
+function buildFranchises(db) {
+  const franchises = {};
+  
+  for (const [key, rules] of Object.entries(db.mappings)) {
+    const parts = key.split(':');
+    if (parts.length < 2) continue;
+    
+    // Group by the provider and ID (e.g., "tmdb:95479")
+    const franchiseId = `${parts[0]}:${parts[1]}`; 
+    
+    if (!franchises[franchiseId]) {
+      franchises[franchiseId] = { anime: {}, mappings: {} };
+    }
+    
+    franchises[franchiseId].mappings[key] = rules;
+    
+    // Attach the anime metadata for any rules in this franchise
+    for (const rule of rules) {
+      const alId = rule.anilistId;
+      if (db.anime[alId] && !franchises[franchiseId].anime[alId]) {
+        franchises[franchiseId].anime[alId] = db.anime[alId];
+      }
+    }
+  }
+  return franchises;
+}
+
 async function buildMasterDb() {
   console.log("Loading databases...");
   const anibridge = JSON.parse(fs.readFileSync('anibridge.json', 'utf8'));
@@ -104,9 +132,6 @@ async function buildMasterDb() {
   console.log("\nBuild stats:");
   console.log(`  anime entries: ${animeCount}`);
   console.log(`  mapping keys: ${mappingCount}`);
-  console.log(`  dropped AniBridge targets: ${droppedAnilist}`);
-  console.log(`  skipped malformed ranges: ${skippedMalformed}`);
-  console.log(`  skipped length-mismatch ranges: ${skippedLengthMismatch}`);
 
   if (animeCount < 15000) throw new Error(`VALIDATION FAILED: anime count too low (${animeCount})`);
   if (mappingCount < 40000) throw new Error(`VALIDATION FAILED: mapping count too low (${mappingCount})`);
@@ -114,55 +139,43 @@ async function buildMasterDb() {
   fs.writeFileSync('master-db.json', JSON.stringify(finalDb));
   console.log(`\nMaster DB built successfully! Size: ${(fs.statSync('master-db.json').size / 1024 / 1024).toFixed(2)} MB`);
 
-  // --- DIFFING LOGIC ---
-  console.log("\nGenerating incremental updates...");
-  let oldDb = { anime: {}, mappings: {} };
+  // --- FRANCHISE BUNDLING & DIFFING LOGIC ---
+  console.log("\nGenerating franchise updates...");
+  
+  const newFranchises = buildFranchises(finalDb);
+  let oldFranchises = {};
+
   if (fs.existsSync('old-master-db.json')) {
     try {
-      oldDb = JSON.parse(fs.readFileSync('old-master-db.json', 'utf8'));
+      const oldDb = JSON.parse(fs.readFileSync('old-master-db.json', 'utf8'));
+      oldFranchises = buildFranchises(oldDb);
       console.log("Loaded old-master-db.json for comparison.");
     } catch (e) {
       console.log("Could not parse old-master-db.json. Assuming fresh build.");
     }
   } else {
-    console.log("No old-master-db.json found. All entries will be marked as new.");
+    console.log("No old-master-db.json found. All franchises will be marked as new.");
   }
 
-  const updates = { anime: {}, mappings: {} };
-  let newAnimeCount = 0;
-  let changedAnimeCount = 0;
-  let newMappingCount = 0;
-  let changedMappingCount = 0;
+  const updates = {}; // Keys will be franchise IDs (e.g., "tmdb:95479")
+  let newCount = 0;
+  let changedCount = 0;
 
-  // 1. Diff Anime
-  for (const [alId, data] of Object.entries(animeData)) {
-    const oldData = oldDb.anime[alId];
+  for (const [franchiseId, data] of Object.entries(newFranchises)) {
+    const oldData = oldFranchises[franchiseId];
     if (!oldData) {
-      updates.anime[alId] = data;
-      newAnimeCount++;
+      updates[franchiseId] = data;
+      newCount++;
     } else if (JSON.stringify(oldData) !== JSON.stringify(data)) {
-      updates.anime[alId] = data;
-      changedAnimeCount++;
-    }
-  }
-
-  // 2. Diff Mappings
-  for (const [key, rules] of Object.entries(mappings)) {
-    const oldRules = oldDb.mappings[key];
-    if (!oldRules) {
-      updates.mappings[key] = rules;
-      newMappingCount++;
-    } else if (JSON.stringify(oldRules) !== JSON.stringify(rules)) {
-      updates.mappings[key] = rules;
-      changedMappingCount++;
+      updates[franchiseId] = data;
+      changedCount++;
     }
   }
 
   fs.writeFileSync('updates.json', JSON.stringify(updates));
   
-  console.log(`\nUpdates generated! Size: ${(fs.statSync('updates.json').size / 1024).toFixed(2)} KB`);
-  console.log(`  New Anime: ${newAnimeCount}, Changed Anime: ${changedAnimeCount}`);
-  console.log(`  New Mappings: ${newMappingCount}, Changed Mappings: ${changedMappingCount}`);
+  console.log(`\nupdates.json generated! Size: ${(fs.statSync('updates.json').size / 1024).toFixed(2)} KB`);
+  console.log(`  New Franchises: ${newCount}, Changed Franchises: ${changedCount}`);
 }
 
 buildMasterDb().catch(err => {
