@@ -7,6 +7,7 @@ on:
 
 permissions:
   contents: write
+
 jobs:
   build:
     runs-on: ubuntu-latest
@@ -19,7 +20,13 @@ jobs:
         with:
           node-version: '18'
 
-      - name: Download databases
+      - name: Download previous database
+        run: |
+          echo "Downloading old DB for diffing..."
+          # The || true prevents the action from failing if it's the very first run
+          curl -sL -o old-master-db.json https://github.com/Breezy9950/Yoruzu-DB/releases/latest/download/master-db.json || true
+
+      - name: Download upstream databases
         run: |
           echo "Downloading Manami..."
           curl -L -s -o manami.json https://github.com/manami-project/anime-offline-database/releases/latest/download/anime-offline-database-minified.json
@@ -38,7 +45,9 @@ jobs:
         with:
           tag_name: db-${{ steps.date.outputs.date }}
           name: Yoruzu DB Update ${{ steps.date.outputs.date }}
-          files: master-db.json
+          files: |
+            master-db.json
+            updates.json
           draft: false
           prerelease: false
         env:
