@@ -31,15 +31,30 @@ async function buildMasterDb() {
     const kitSource = sources.find(s => s.includes('kitsu.app/anime/') || s.includes('kitsu.io/anime/'));
     const kitsuId = kitSource ? kitSource.split('/anime/')[1] : null;
 
-    // --- ASCII / LATIN FILTER ---
+    // --- ASCII FILTER & SMART SORTING ---
     const rawTitles = [anime.title, ...(anime.synonyms || [])].filter(Boolean);
+    const asciiTitles = rawTitles.filter(t => /^[\x00-\x7F]+$/.test(t));
     
-    // Keep only titles that match ASCII characters (English, Romaji, accented Latin)
-    const safeTitles = rawTitles.filter(t => /^[\x00-\x7F]+$/.test(t));
+    // 1. Shift the main title (usually Romaji) to the front
+    const mainTitle = asciiTitles.shift(); 
     
+    // 2. Sort the remaining synonyms so English titles and abbreviations come first
+    const englishWords = /\b(the|of|to|in|and|is|on|for|a|an)\b/i;
+    
+    asciiTitles.sort((a, b) => {
+      const aIsEnglish = englishWords.test(a) ? 1 : 0;
+      const bIsEnglish = englishWords.test(b) ? 1 : 0;
+      if (aIsEnglish !== bIsEnglish) return bIsEnglish - aIsEnglish;
+      
+      // If both or neither are English, prefer the shorter one (usually English translations are shorter than full Romaji)
+      return a.length - b.length;
+    });
+    
+    // 3. Combine and cap at 6 titles to prevent scraper timeouts
+    const finalTitles = [mainTitle, ...asciiTitles].slice(0, 6);
+
     animeData[alId] = {
-      // Fallback to rawTitles if safeTitles is somehow empty
-      titles: safeTitles.length > 0 ? safeTitles : rawTitles,
+      titles: finalTitles,
       malId,
       kitsuId,
       format: anime.type || null,
