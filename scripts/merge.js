@@ -1,20 +1,12 @@
 const fs = require('fs');
 
-// Helper to bundle the flat DB into franchise-based mappings
 function buildFranchises(db) {
   const franchises = {};
-  
   for (const [key, rules] of Object.entries(db.mappings)) {
     const parts = key.split(':');
     if (parts.length < 2) continue;
-    
-    // Group by the provider and ID (e.g., "tmdb:95479")
     const franchiseId = `${parts[0]}:${parts[1]}`; 
-    
-    if (!franchises[franchiseId]) {
-      franchises[franchiseId] = { mappings: {} };
-    }
-    
+    if (!franchises[franchiseId]) franchises[franchiseId] = { mappings: {} };
     franchises[franchiseId].mappings[key] = rules;
   }
   return franchises;
@@ -39,8 +31,15 @@ async function buildMasterDb() {
     const kitSource = sources.find(s => s.includes('kitsu.app/anime/') || s.includes('kitsu.io/anime/'));
     const kitsuId = kitSource ? kitSource.split('/anime/')[1] : null;
 
+    // --- ASCII / LATIN FILTER ---
+    const rawTitles = [anime.title, ...(anime.synonyms || [])].filter(Boolean);
+    
+    // Keep only titles that match ASCII characters (English, Romaji, accented Latin)
+    const safeTitles = rawTitles.filter(t => /^[\x00-\x7F]+$/.test(t));
+    
     animeData[alId] = {
-      titles: [anime.title, ...(anime.synonyms || [])].filter(Boolean),
+      // Fallback to rawTitles if safeTitles is somehow empty
+      titles: safeTitles.length > 0 ? safeTitles : rawTitles,
       malId,
       kitsuId,
       format: anime.type || null,
@@ -153,9 +152,9 @@ async function buildMasterDb() {
     console.log("No old-master-db.json found. All franchises will be marked as new.");
   }
 
-  // --- WRITE FULL SEED DB (Anime is flat, Franchises have mappings) ---
+  // --- WRITE FULL SEED DB ---
   const seedData = {
-    anime: newFranchises ? animeData : {}, 
+    anime: animeData, 
     franchises: newFranchises
   };
   
@@ -174,7 +173,7 @@ async function buildMasterDb() {
       changedCount++;
       
       // If this franchise changed, we need to ensure its anime metadata is in the update
-      for (const [mapKey, rules] of Object.entries(data.mappings)) {
+      for (const rules of Object.values(data.mappings)) {
         for (const rule of rules) {
           if (animeData[rule.anilistId] && !updates.anime[rule.anilistId]) {
             updates.anime[rule.anilistId] = animeData[rule.anilistId];
