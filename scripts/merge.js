@@ -1,6 +1,6 @@
 const fs = require('fs');
 
-// Helper to bundle the flat DB into franchise-based objects
+// Helper to bundle the flat DB into franchise-based mappings
 function buildFranchises(db) {
   const franchises = {};
   
@@ -12,18 +12,10 @@ function buildFranchises(db) {
     const franchiseId = `${parts[0]}:${parts[1]}`; 
     
     if (!franchises[franchiseId]) {
-      franchises[franchiseId] = { anime: {}, mappings: {} };
+      franchises[franchiseId] = { mappings: {} };
     }
     
     franchises[franchiseId].mappings[key] = rules;
-    
-    // Attach the anime metadata for any rules in this franchise
-    for (const rule of rules) {
-      const alId = rule.anilistId;
-      if (db.anime[alId] && !franchises[franchiseId].anime[alId]) {
-        franchises[franchiseId].anime[alId] = db.anime[alId];
-      }
-    }
   }
   return franchises;
 }
@@ -161,29 +153,40 @@ async function buildMasterDb() {
     console.log("No old-master-db.json found. All franchises will be marked as new.");
   }
 
-  // --- WRITE FULL SEED DB (For initial Netlify Blob seeding) ---
-  fs.writeFileSync('seed.json', JSON.stringify(newFranchises));
+  // --- WRITE FULL SEED DB (Anime is flat, Franchises have mappings) ---
+  const seedData = {
+    anime: newFranchises ? animeData : {}, 
+    franchises: newFranchises
+  };
+  
+  fs.writeFileSync('seed.json', JSON.stringify(seedData));
   console.log(`seed.json built successfully! Size: ${(fs.statSync('seed.json').size / 1024 / 1024).toFixed(2)} MB`);
 
   // --- WRITE INCREMENTAL UPDATES DB ---
-  const updates = {}; 
+  const updates = { anime: {}, franchises: {} }; 
   let newCount = 0;
   let changedCount = 0;
 
   for (const [franchiseId, data] of Object.entries(newFranchises)) {
     const oldData = oldFranchises[franchiseId];
-    if (!oldData) {
-      updates[franchiseId] = data;
-      newCount++;
-    } else if (JSON.stringify(oldData) !== JSON.stringify(data)) {
-      updates[franchiseId] = data;
+    if (!oldData || JSON.stringify(oldData) !== JSON.stringify(data)) {
+      updates.franchises[franchiseId] = data;
       changedCount++;
+      
+      // If this franchise changed, we need to ensure its anime metadata is in the update
+      for (const [mapKey, rules] of Object.entries(data.mappings)) {
+        for (const rule of rules) {
+          if (animeData[rule.anilistId] && !updates.anime[rule.anilistId]) {
+            updates.anime[rule.anilistId] = animeData[rule.anilistId];
+          }
+        }
+      }
     }
   }
 
   fs.writeFileSync('updates.json', JSON.stringify(updates));
   console.log(`updates.json built successfully! Size: ${(fs.statSync('updates.json').size / 1024).toFixed(2)} KB`);
-  console.log(`  New Franchises: ${newCount}, Changed Franchises: ${changedCount}`);
+  console.log(`  Changed Franchises: ${changedCount}, Anime Entries Included: ${Object.keys(updates.anime).length}`);
 }
 
 buildMasterDb().catch(err => {
