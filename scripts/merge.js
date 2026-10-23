@@ -15,11 +15,11 @@ function buildFranchises(db) {
 async function buildMasterDb() {
   console.log("Loading databases...");
   const anibridge = JSON.parse(fs.readFileSync('anibridge.json', 'utf8'));
-  const manami = JSON.parse(fs.readFileSync('manami.json', 'utf8'));
+  const cedya77 = JSON.parse(fs.readFileSync('cedya77.json', 'utf8'));
 
-  console.log("Extracting Titles and IDs from Manami...");
+  console.log("Extracting Titles and IDs from Cedya77...");
   const animeData = {};
-  for (const anime of manami.data) {
+  for (const anime of cedya77.data) {
     const sources = anime.sources || [];
     const alSource = sources.find(s => s.includes('anilist.co/anime/'));
     if (!alSource) continue;
@@ -46,7 +46,7 @@ async function buildMasterDb() {
       const bIsEnglish = englishWords.test(b) ? 1 : 0;
       if (aIsEnglish !== bIsEnglish) return bIsEnglish - aIsEnglish;
       
-      // If both or neither are English, prefer the shorter one (usually English translations are shorter than full Romaji)
+      // If both or neither are English, prefer the shorter one
       return a.length - b.length;
     });
     
