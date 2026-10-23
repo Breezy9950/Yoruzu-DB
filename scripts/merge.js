@@ -5,6 +5,11 @@ function buildFranchises(db) {
   for (const [key, rules] of Object.entries(db.mappings)) {
     const parts = key.split(':');
     if (parts.length < 2) continue;
+    
+    // --- SKIP ANIDB FOR BLOBS (SEED & UPDATES) ---
+    if (parts[0] === 'anidb') continue; 
+    // ---------------------------------------------
+
     const franchiseId = `${parts[0]}:${parts[1]}`; 
     if (!franchises[franchiseId]) franchises[franchiseId] = { mappings: {} };
     franchises[franchiseId].mappings[key] = rules;
