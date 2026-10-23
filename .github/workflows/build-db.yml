@@ -2,7 +2,7 @@ name: Build Yoruzu DB
 
 on:
   schedule:
-    - cron: '0 0 * * 0' # Runs every Sunday at midnight
+    - cron: '0 0 */3 * *' # Runs every 3 days at midnight
   workflow_dispatch: # Allows you to run it manually anytime
 
 permissions:
@@ -28,8 +28,9 @@ jobs:
 
       - name: Download upstream databases
         run: |
-          echo "Downloading Manami..."
-          curl -L -s -o manami.json https://github.com/manami-project/anime-offline-database/releases/latest/download/anime-offline-database-minified.json
+          echo "Downloading Cedya77 DB..."
+          curl -L -s -o cedya77.json https://github.com/cedya77/anime-offline-database/releases/download/latest/anime-offline-database-minified.json
+          
           echo "Downloading AniBridge..."
           curl -L -s -o anibridge.json https://github.com/anibridge/anibridge-mappings/releases/download/v3/mappings.min.json
 
